@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="HotReloadPluginConfiguration">
+    <option name="hostNameKeyword" value="" />
+    <option name="keywords">
+      <list>
+        <option value="" />
+      </list>
+    </option>
+    <option name="selectedHostName" value="aliyun-beebot-pri011164063227.na62:18806" />
+    <option name="selectedProcess">
+      <JvmProcess>
+        <option name="detailVmArgs" value="-Xbootclasspath/a:/disk1/alibaba/java/jre/../lib/tools.jar -Dagent.path=/home/dockerUser/.hotreload/hotreload-agent-1.0.5-jar-with-dependencies.jar -Dserver.port=18806 -Deureka.client.enabled=false" />
+        <option name="displayName" value="/home/dockerUser/.hotreload/hotreload-web-1.0.5.jar" />
+        <option name="pid" value="30884" />
+      </JvmProcess>
+    </option>
+    <option name="server" value="t227:18806" />
+  </component>
+</project>
