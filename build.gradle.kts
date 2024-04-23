@@ -11,6 +11,11 @@ repositories {
     mavenCentral()
 }
 
+dependencies {
+// https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-models
+    implementation("io.swagger.core.v3:swagger-models:2.2.21")
+}
+
 // Configure Gradle IntelliJ Plugin
 // Read more: https://plugins.jetbrains.com/docs/intellij/tools-gradle-intellij-plugin.html
 intellij {
