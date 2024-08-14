@@ -3,7 +3,6 @@ package com.weisanju.jsonschema
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.NlsSafe
 import com.intellij.psi.*
 import com.intellij.psi.impl.source.javadoc.PsiDocTokenImpl
 import com.intellij.psi.javadoc.PsiDocTag
@@ -24,7 +23,7 @@ import java.util.*
 
 class PsiUtils {
     companion object {
-        fun getSelected(event: AnActionEvent): Pair<PsiClass, PsiMethod> {
+        fun getSelected(event: AnActionEvent): Pair<PsiClass, PsiMethod?> {
             //获取当前文件所处的JAVA类
             val editor = event.dataContext.getData(CommonDataKeys.EDITOR)!!
 
@@ -34,7 +33,7 @@ class PsiUtils {
 
             val psiClass: PsiClass = PsiTreeUtil.getContextOfType(referenceAt, PsiClass::class.java)!!
 
-            val selectMethod = PsiTreeUtil.getContextOfType(referenceAt, PsiMethod::class.java)!!
+            val selectMethod = PsiTreeUtil.getContextOfType(referenceAt, PsiMethod::class.java)
 
             return Pair(psiClass, selectMethod)
         }
@@ -107,7 +106,7 @@ object PsiDocCommentUtils {
     /**
      * 获取文档标题行
      */
-    fun getDocCommentTitle(element: Any): String? {
+    fun getDocCommentTitle(element: Any?): String? {
         if (element is PsiJavaDocumentedElement) {
             val comment = element.docComment
             if (comment != null) {
@@ -199,16 +198,55 @@ object PsiAnnotationUtils {
 
 
 object PsiTypeUtils {
-    fun isSimpleType(type: PsiType): Boolean {
-        return type is PsiPrimitiveType ||
-                (type is PsiClassType && type.resolve()?.qualifiedName?.equals("java.lang.String") == true)
+
+
+    fun getPsiTypeFromPsiClass(psiClass: PsiClass): PsiType {
+        // 获取当前项目的 PsiElementFactory 实例
+        val project = psiClass.project
+        val factory = JavaPsiFacade.getInstance(project).elementFactory
+
+        // 使用 PsiElementFactory 将 PsiClass 转换为 PsiType
+        return factory.createType(psiClass)
     }
+
+    fun isSimpleType(type: PsiType): Boolean {
+        if (type is PsiPrimitiveType) {
+            return true;
+        }
+        // 基础类型的包装类和 String 的全限定名
+        // 如果是基础类型的包装类或 String，则返回 true
+        return type.canonicalText in simpleTypes()
+    }
+
+    fun isJdkBuildIn(type: PsiType): Boolean {
+        return type.canonicalText.startsWith("java.") || type.canonicalText.startsWith("javax.")
+    }
+
+
+    fun isInteger(type: PsiType): Boolean {
+        val intType = arrayOf(
+            PsiTypes.intType(), PsiTypes.longType(), PsiTypes.shortType(), PsiTypes.byteType(),
+            PsiTypes.charType()
+        )
+        val intTypeStr =
+            arrayOf("java.lang.Integer", "java.lang.Long", "java.lang.Short", "java.lang.Byte", "java.lang.Character")
+        return type in intType
+                ||
+                type.canonicalText in intTypeStr
+    }
+
 
     fun isSimpleArray(type: PsiType?): Boolean {
         return type is PsiArrayType
     }
 
-    fun getQualifiedName(type: PsiType?): String? {
+
+    fun isArray(type: PsiType?, project: Project): Boolean {
+        return isSimpleArray(type) || isCollection(type, project);
+    }
+
+
+    fun getQualifiedName(type: PsiModifierListOwner?): String? {
         if (type is PsiClassType) {
             return type.resolve()?.qualifiedName!!
         }
@@ -223,17 +261,18 @@ object PsiTypeUtils {
         return false
     }
 
-
-    fun isAssignedFrom(project: Project, type: PsiType?, qualifiedName: String): Boolean {
+    fun isAssignedFrom(project: Project, type: PsiModifierListOwner?, qualifiedName: String): Boolean {
         val list = PsiType.getTypeByName(qualifiedName, project, GlobalSearchScope.allScope(project))
-        if (type != null && type is PsiClassType) {
-            return list.isAssignableFrom(type)
+
+        if (type != null && type is PsiParameter) {
+            return list.isAssignableFrom(type.type)
         }
+
         return false
     }
 
     fun getName(
-        element: PsiType?
+        element: PsiModifierListOwner?
     ): String? {
         return if (element is PsiNamedElement) {
             element.name
@@ -241,10 +280,33 @@ object PsiTypeUtils {
             null
         }
     }
+
+    fun isBoolean(type: PsiType): Boolean {
+        return type.canonicalText == "java.lang.Boolean"
+    }
+
+
+    fun isNumber(type: PsiType): Boolean {
+        //double or float
+        return type.canonicalText == "java.lang.Double" || type.canonicalText == "java.lang.Float"
+    }
 }
 
+private fun simpleTypes(): Set<String> = setOf(
+    "java.lang.Byte",
+    "java.lang.Character",
+    "java.lang.Short",
+    "java.lang.Integer",
+    "java.lang.Long",
+    "java.lang.Float",
+    "java.lang.Double",
+    "java.lang.Boolean",
+    "java.lang.Void",
+    "java.lang.String"
+)
+
 object PsiSchemaUtils {
-    fun generateSchema(type: PsiType, project: Project): Schema<*> {
+    fun generateSchema(type: PsiModifierListOwner?, project: Project): Schema<*> {
 
         val fieldName = PsiTypeUtils.getName(type) ?: ""
 
@@ -272,32 +334,42 @@ object PsiSchemaUtils {
             } else if (PsiTypeUtils.isAssignedFrom(project, type, "java.util.List")) {
                 //获取集合泛型
                 ArraySchema().items(
+                    // getParameters
+
                     generateSchema(
-                        (type as PsiClassType).parameters[0], project
+                        (type as PsiClassType).parameters[0] as PsiParameter, project
                     )
                 )
 
             } else if (PsiTypeUtils.isAssignedFrom(project, type, "java.util.Map")) {
                 MapSchema().additionalItems(
                     generateSchema(
-                        (type as PsiClassType).parameters[1], project
+                        (type as PsiClassType).parameters[1] as PsiParameter, project
                     )
                 )
             } else {
-                if (type is PsiClassType) {
-                    val fields = type.resolve()?.fields
-                    if (fields != null) {
-                        val objectSchema = ObjectSchema()
-                        for (field in fields) {
-                            objectSchema.addProperty(field.name, generateSchema(field.type, project))
-                        }
-                        return objectSchema
+                val clz = transToPsiClass(type)
+                if (clz is PsiClass) {
+                    val objectSchema = ObjectSchema()
+                    for (field in clz.fields) {
+                        objectSchema.addProperty(field.name, generateSchema(field, project))
                     }
+                    return objectSchema
                 }
                 throw Exception("未知类型:${type}")
             }
         }
         schemaFinal.description(fieldDescription).name(fieldName)
         return schemaFinal;
+    }
+
+    private fun transToPsiClass(type: PsiModifierListOwner?): PsiClass? {
+        if (type is PsiClass) {
+            return type
+        }
+        if (type is PsiParameter) {
+            return (type.type as PsiClassType).resolve() as PsiClass
+        }
+        return null
     }
 }

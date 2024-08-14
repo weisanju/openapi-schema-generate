@@ -14,6 +14,8 @@ repositories {
 dependencies {
 // https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-models
     implementation("io.swagger.core.v3:swagger-models:2.2.21")
+
+    implementation("com.google.code.gson:gson:2.10.1")
 }
 
 // Configure Gradle IntelliJ Plugin

@@ -1,47 +1,17 @@
 package com.weisanju.jsonschema
 
+import com.google.gson.GsonBuilder
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.project.Project
+import com.intellij.psi.PsiArrayType
 import com.intellij.psi.PsiClassType
-import com.intellij.psi.PsiField
-import io.swagger.v3.oas.models.OpenAPI
+import com.intellij.psi.PsiType
 import io.swagger.v3.oas.models.Operation
 import io.swagger.v3.oas.models.PathItem
-import io.swagger.v3.oas.models.Paths
-import io.swagger.v3.oas.models.info.Info
 import io.swagger.v3.oas.models.media.Content
-import io.swagger.v3.oas.models.parameters.Parameter
 import io.swagger.v3.oas.models.parameters.RequestBody
 
-
-class HelloWorldAction : AnAction() {
-    override fun actionPerformed(e: AnActionEvent) {
-        val project = e.project
-        val message = "Hello,World!"
-        // Show dialog with message
-        Messages.showMessageDialog(project, message, "Greeting", Messages.getInformationIcon())
-
-        val openAPI = OpenAPI()
-
-        openAPI.info = generateInfo();
-
-        val paths = Paths()
-
-
-        paths.addPathItem("", PathItem())
-
-        openAPI.paths = paths;
-    }
-
-    private fun generateInfo(): Info {
-        val info = Info()
-        info.title = ""
-        info.summary = ""
-        info.description = ""
-        return info
-    }
-}
 
 class OpenApiSchemaGenerate : AnAction() {
     override fun actionPerformed(event: AnActionEvent) {
@@ -58,7 +28,7 @@ class OpenApiSchemaGenerate : AnAction() {
         val requestPath2 = PsiAnnotationUtils.getAnnotationValue(
             "org.springframework.web.bind.annotation.RequestMapping",
             "value",
-            selectMethod
+            selectMethod!!
         )
 
         //判断 GET POST DELETE
@@ -95,7 +65,7 @@ class OpenApiSchemaGenerate : AnAction() {
             )
 
             if (requestBody) {
-                val schema = PsiSchemaUtils.generateSchema(parameter.type, project)
+                val schema = PsiSchemaUtils.generateSchema(parameter, project)
                 op.requestBody(
                     RequestBody().required(true).content(
                         Content().addMediaType(
@@ -115,18 +85,94 @@ class OpenApiSchemaGenerate : AnAction() {
             }
             //集合类型
             else if (PsiTypeUtils.isCollection(parameter.type, project)) {
+
             }
             //其他类型
             else {
+
             }
         }
-
         println(op)
     }
+}
 
-    private fun getFieldName(field: PsiField): String {
-        val fieldAnnotation = PsiAnnotationUtils.getAnnotation("com.fasterxml.jackson.annotation.JsonProperty", field)
-        val fieldName = fieldAnnotation["value"] ?: field.name
-        return fieldName
+
+class ApiPostDomainGenerate : AnAction() {
+    override fun actionPerformed(event: AnActionEvent) {
+
+        val project = event.project!!
+
+        //获取选中的类、选中的方法
+
+        val (psiClass) = PsiUtils.getSelected(event)
+
+        val obj = createProperty(PsiTypeUtils.getPsiTypeFromPsiClass(psiClass), project)
+
+        val gson = GsonBuilder().setPrettyPrinting().create()
+
+        val jsonString = gson.toJson(obj)
+
+        println(jsonString)
     }
+
+    private fun createProperty(
+        type: PsiType,
+        project: Project
+    ): Property {
+        val description = PsiDocCommentUtils.getDocCommentTitle(type)
+
+        if (PsiTypeUtils.isArray(type, project)) {
+            val property = ArrayProperty(description)
+            val items: PsiType = if (PsiTypeUtils.isSimpleArray(type)) {
+                (type as PsiArrayType).componentType
+            } else {
+                ((type as PsiClassType).parameters[0] as PsiClassType)
+            }
+
+            property.items = createProperty(items, project)
+
+            return property
+        }
+
+
+        if (PsiTypeUtils.isSimpleType(type)) {
+
+            var property: Property;
+            if (PsiTypeUtils.isInteger(type)) {
+                property = IntegerProperty(description)
+            } else if (PsiTypeUtils.isBoolean(type)) {
+                property = BooleanProperty(description)
+            } else if (PsiTypeUtils.isNumber(type)) {
+                property = NumberProperty(description)
+            } else {
+                property = StringProperty(description)
+            }
+            return property
+        }
+
+
+        if (PsiTypeUtils.isJdkBuildIn(type)) {
+            return StringProperty(description)
+        }
+
+
+        val obj = ObjectProperty(description)
+
+        val clz = (type as PsiClassType).resolve()
+
+        clz?.fields?.forEach {
+            val description = PsiDocCommentUtils.getDocCommentTitle(it) ?: it.name
+
+            val type = it.type
+
+            val prop = createProperty(type, project)
+
+            prop.description = description
+
+            obj.properties[it.name] = prop
+        }
+
+        return obj
+    }
+
 }
