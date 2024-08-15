@@ -352,6 +352,15 @@ object PsiSchemaUtils {
                 if (clz is PsiClass) {
                     val objectSchema = ObjectSchema()
                     for (field in clz.fields) {
+                        //非static字段
+                        if (
+                                field.hasModifierProperty(PsiModifier.STATIC)
+                                ||
+                                field.hasModifierProperty(PsiModifier.FINAL)
+                            ) {
+                            continue
+                        }
+
                         objectSchema.addProperty(field.name, generateSchema(field, project))
                     }
                     return objectSchema

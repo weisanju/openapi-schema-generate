@@ -6,6 +6,7 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiArrayType
 import com.intellij.psi.PsiClassType
+import com.intellij.psi.PsiModifier
 import com.intellij.psi.PsiType
 import io.swagger.v3.oas.models.Operation
 import io.swagger.v3.oas.models.PathItem
@@ -112,7 +113,9 @@ class ApiPostDomainGenerate : AnAction() {
 
         val jsonString = gson.toJson(obj)
 
-        println(jsonString)
+
+        ClipboardUtil.copyToClipboard(jsonString)
+
     }
 
     private fun createProperty(
@@ -160,14 +163,16 @@ class ApiPostDomainGenerate : AnAction() {
 
         val clz = (type as PsiClassType).resolve()
 
-        clz?.fields?.forEach {
-            val description = PsiDocCommentUtils.getDocCommentTitle(it) ?: it.name
+        clz?.allFields?.forEach {
 
-            val type = it.type
+            //判断是否是静态字段 或者 final字段
+            if (it.hasModifierProperty(PsiModifier.STATIC) || it.hasModifierProperty(PsiModifier.FINAL)) {
+                return@forEach
+            }
 
-            val prop = createProperty(type, project)
+            val prop = createProperty(it.type, project)
 
-            prop.description = description
+            prop.description = PsiDocCommentUtils.getDocCommentTitle(it) ?: it.name
 
             obj.properties[it.name] = prop
         }
