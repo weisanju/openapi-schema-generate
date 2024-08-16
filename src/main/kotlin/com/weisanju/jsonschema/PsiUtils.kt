@@ -161,6 +161,14 @@ object PsiDocCommentUtils {
         val text = linkElement.text
         return text.substring("{@link".length, text.length - 1).trim { it <= ' ' }
     }
+
+    fun hasIgnoreTag(it: PsiField?): Boolean {
+        //判空
+        if (it == null) {
+            return false
+        }
+        return findTagByName(it, "ignore") != null
+    }
 }
 
 
@@ -354,10 +362,10 @@ object PsiSchemaUtils {
                     for (field in clz.fields) {
                         //非static字段
                         if (
-                                field.hasModifierProperty(PsiModifier.STATIC)
-                                ||
-                                field.hasModifierProperty(PsiModifier.FINAL)
-                            ) {
+                            field.hasModifierProperty(PsiModifier.STATIC)
+                            ||
+                            field.hasModifierProperty(PsiModifier.FINAL)
+                        ) {
                             continue
                         }
 

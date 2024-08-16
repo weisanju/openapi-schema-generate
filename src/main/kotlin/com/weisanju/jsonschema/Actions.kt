@@ -4,10 +4,8 @@ import com.google.gson.GsonBuilder
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiArrayType
-import com.intellij.psi.PsiClassType
-import com.intellij.psi.PsiModifier
-import com.intellij.psi.PsiType
+import com.intellij.psi.*
+import com.jetbrains.rd.framework.base.deepClonePolymorphic
 import io.swagger.v3.oas.models.Operation
 import io.swagger.v3.oas.models.PathItem
 import io.swagger.v3.oas.models.media.Content
@@ -107,12 +105,14 @@ class ApiPostDomainGenerate : AnAction() {
 
         val (psiClass) = PsiUtils.getSelected(event)
 
-        val obj = createProperty(PsiTypeUtils.getPsiTypeFromPsiClass(psiClass), project)
+
+        val propertyPath = mutableListOf<PsiClass>()
+
+        val obj = createProperty(PsiTypeUtils.getPsiTypeFromPsiClass(psiClass), project, propertyPath)
 
         val gson = GsonBuilder().setPrettyPrinting().create()
 
         val jsonString = gson.toJson(obj)
-
 
         ClipboardUtil.copyToClipboard(jsonString)
 
@@ -120,7 +120,8 @@ class ApiPostDomainGenerate : AnAction() {
 
     private fun createProperty(
         type: PsiType,
-        project: Project
+        project: Project,
+        propertyPath: MutableList<PsiClass>
     ): Property {
         val description = PsiDocCommentUtils.getDocCommentTitle(type)
 
@@ -132,7 +133,7 @@ class ApiPostDomainGenerate : AnAction() {
                 ((type as PsiClassType).parameters[0] as PsiClassType)
             }
 
-            property.items = createProperty(items, project)
+            property.items = createProperty(items, project, propertyPath)
 
             return property
         }
@@ -140,7 +141,7 @@ class ApiPostDomainGenerate : AnAction() {
 
         if (PsiTypeUtils.isSimpleType(type)) {
 
-            var property: Property;
+            val property: Property;
             if (PsiTypeUtils.isInteger(type)) {
                 property = IntegerProperty(description)
             } else if (PsiTypeUtils.isBoolean(type)) {
@@ -161,22 +162,41 @@ class ApiPostDomainGenerate : AnAction() {
 
         val obj = ObjectProperty(description)
 
-        val clz = (type as PsiClassType).resolve()
 
-        clz?.allFields?.forEach {
+        val clz = (type as PsiClassType).resolve()!!
+
+        //判断是否存在循环引用。即在路径中是否存在当前类
+
+
+        for (psiClass in propertyPath) {
+            if (psiClass == clz) {
+                throw RuntimeException(
+                    "类${clz.qualifiedName} 存在 循环引用，API中禁止存在循环引用,引用路径为：${
+                        propertyPath.map { it.qualifiedName }.joinToString("->")
+                    }"
+                )
+            }
+        }
+
+        //防止循环引用。 生成过的类不再生成
+        propertyPath.add(clz)
+
+        clz.allFields.forEach {
 
             //判断是否是静态字段 或者 final字段
             if (it.hasModifierProperty(PsiModifier.STATIC) || it.hasModifierProperty(PsiModifier.FINAL)) {
                 return@forEach
             }
 
-            val prop = createProperty(it.type, project)
+            //忽略 注释中 带有 @ignore 的字段
+            if (PsiDocCommentUtils.hasIgnoreTag(it)) {
+                return@forEach
+            }
 
+            val prop = createProperty(it.type, project, propertyPath.toMutableList())
             prop.description = PsiDocCommentUtils.getDocCommentTitle(it) ?: it.name
-
             obj.properties[it.name] = prop
         }
-
         return obj
     }
 
