@@ -4,12 +4,20 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import java.io.Serializable
 
-open class Property(var description: String? = null, var type: String? = null) : Serializable {
+open class Property(
+    var description: String? = null,
+    var type: String? = null,
+    var required: Boolean? = null,
+    var example: String? = null
+) :
+    Serializable {
 
 }
 
 open class ObjectProperty() : Property(type = "object") {
     var properties: MutableMap<String, Property> = mutableMapOf();
+
+    var additionalProperties: Property? = null;
 
     constructor(description: String? = null) : this() {
         this.description = description

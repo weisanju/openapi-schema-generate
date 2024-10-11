@@ -95,6 +95,97 @@ class OpenApiSchemaGenerate : AnAction() {
     }
 }
 
+private fun createProperty(
+    type: PsiType,
+    project: Project,
+    propertyPath: MutableList<PsiClass>
+): Property {
+    val description = PsiDocCommentUtils.getDocCommentTitle(type)
+
+
+    if (PsiTypeUtils.isArray(type, project)) {
+        val property = ArrayProperty(description)
+        val items: PsiType = if (PsiTypeUtils.isSimpleArray(type)) {
+            (type as PsiArrayType).componentType
+        } else {
+            ((type as PsiClassType).parameters[0] as PsiClassType)
+        }
+
+        property.items = createProperty(items, project, propertyPath)
+
+        return property
+    }
+
+
+    if (PsiTypeUtils.isSimpleType(type)) {
+
+        val property: Property;
+        if (PsiTypeUtils.isInteger(type)) {
+            property = IntegerProperty(description)
+        } else if (PsiTypeUtils.isBoolean(type)) {
+            property = BooleanProperty(description)
+        } else if (PsiTypeUtils.isNumber(type)) {
+            property = NumberProperty(description)
+        } else {
+            property = StringProperty(description)
+        }
+        return property
+    }
+
+    //map类型
+    if (PsiTypeUtils.isMap(project, type)) {
+        //获取 Map 的 key Value
+        val obj = ObjectProperty(description)
+        obj.additionalProperties = createProperty(PsiTypeUtils.getMapValueType(type), project, propertyPath)
+        return obj
+    }
+
+
+    if (PsiTypeUtils.isJdkBuildIn(type)) {
+        return StringProperty(description)
+    }
+
+
+    val obj = ObjectProperty(description)
+
+
+    val clz = (type as PsiClassType).resolve()!!
+
+    //判断是否存在循环引用。即在路径中是否存在当前类
+    for (psiClass in propertyPath) {
+        if (psiClass == clz) {
+            throw RuntimeException(
+                "类${clz.qualifiedName} 存在 循环引用，API中禁止存在循环引用,引用路径为：${
+                    propertyPath.map { it.qualifiedName }.joinToString("->")
+                }"
+            )
+        }
+    }
+
+    //防止循环引用。 生成过的类不再生成
+    propertyPath.add(clz)
+
+    clz.allFields.forEach {
+
+        //判断是否是静态字段 或者 final字段
+        if (it.hasModifierProperty(PsiModifier.STATIC) || it.hasModifierProperty(PsiModifier.FINAL)) {
+            return@forEach
+        }
+
+        //忽略 注释中 带有 @ignore 的字段
+        if (PsiDocCommentUtils.hasIgnoreTag(it)) {
+            return@forEach
+        }
+
+        val prop = createProperty(it.type, project, propertyPath.toMutableList())
+        prop.description = PsiDocCommentUtils.getDocCommentTitle(it) ?: it.name
+        prop.example = PsiDocCommentUtils.getTagText(it, "example")
+        prop.required = PsiAnnotationUtils.annotationExists("javax.validation.constraints.NotNull", it)
+        obj.properties[it.name] = prop
+    }
+    return obj
+}
+
 
 class ApiPostDomainGenerate : AnAction() {
     override fun actionPerformed(event: AnActionEvent) {
@@ -115,89 +206,5 @@ class ApiPostDomainGenerate : AnAction() {
         val jsonString = gson.toJson(obj)
 
         ClipboardUtil.copyToClipboard(jsonString)
-
     }
-
-    private fun createProperty(
-        type: PsiType,
-        project: Project,
-        propertyPath: MutableList<PsiClass>
-    ): Property {
-        val description = PsiDocCommentUtils.getDocCommentTitle(type)
-
-        if (PsiTypeUtils.isArray(type, project)) {
-            val property = ArrayProperty(description)
-            val items: PsiType = if (PsiTypeUtils.isSimpleArray(type)) {
-                (type as PsiArrayType).componentType
-            } else {
-                ((type as PsiClassType).parameters[0] as PsiClassType)
-            }
-
-            property.items = createProperty(items, project, propertyPath)
-
-            return property
-        }
-
-
-        if (PsiTypeUtils.isSimpleType(type)) {
-
-            val property: Property;
-            if (PsiTypeUtils.isInteger(type)) {
-                property = IntegerProperty(description)
-            } else if (PsiTypeUtils.isBoolean(type)) {
-                property = BooleanProperty(description)
-            } else if (PsiTypeUtils.isNumber(type)) {
-                property = NumberProperty(description)
-            } else {
-                property = StringProperty(description)
-            }
-            return property
-        }
-
-
-        if (PsiTypeUtils.isJdkBuildIn(type)) {
-            return StringProperty(description)
-        }
-
-
-        val obj = ObjectProperty(description)
-
-
-        val clz = (type as PsiClassType).resolve()!!
-
-        //判断是否存在循环引用。即在路径中是否存在当前类
-
-
-        for (psiClass in propertyPath) {
-            if (psiClass == clz) {
-                throw RuntimeException(
-                    "类${clz.qualifiedName} 存在 循环引用，API中禁止存在循环引用,引用路径为：${
-                        propertyPath.map { it.qualifiedName }.joinToString("->")
-                    }"
-                )
-            }
-        }
-
-        //防止循环引用。 生成过的类不再生成
-        propertyPath.add(clz)
-
-        clz.allFields.forEach {
-
-            //判断是否是静态字段 或者 final字段
-            if (it.hasModifierProperty(PsiModifier.STATIC) || it.hasModifierProperty(PsiModifier.FINAL)) {
-                return@forEach
-            }
-
-            //忽略 注释中 带有 @ignore 的字段
-            if (PsiDocCommentUtils.hasIgnoreTag(it)) {
-                return@forEach
-            }
-
-            val prop = createProperty(it.type, project, propertyPath.toMutableList())
-            prop.description = PsiDocCommentUtils.getDocCommentTitle(it) ?: it.name
-            obj.properties[it.name] = prop
-        }
-        return obj
-    }
-
 }

@@ -269,15 +269,20 @@ object PsiTypeUtils {
         return false
     }
 
-    fun isAssignedFrom(project: Project, type: PsiModifierListOwner?, qualifiedName: String): Boolean {
+    fun isAssignedFrom(project: Project, type: Any?, qualifiedName: String): Boolean {
         val list = PsiType.getTypeByName(qualifiedName, project, GlobalSearchScope.allScope(project))
 
         if (type != null && type is PsiParameter) {
             return list.isAssignableFrom(type.type)
         }
 
+        if (type != null && type is PsiType) {
+            return list.isAssignableFrom(type)
+        }
+
         return false
     }
+
 
     fun getName(
         element: PsiModifierListOwner?
@@ -297,6 +302,14 @@ object PsiTypeUtils {
     fun isNumber(type: PsiType): Boolean {
         //double or float
         return type.canonicalText == "java.lang.Double" || type.canonicalText == "java.lang.Float"
+    }
+
+    fun isMap(project: Project, type: PsiType): Boolean {
+        return isAssignedFrom(project, type, "java.util.Map")
+    }
+
+    fun getMapValueType(type: PsiType): PsiType {
+        return (type as PsiClassType).parameters[1]
     }
 }
 
