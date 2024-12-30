@@ -29,11 +29,6 @@
 
     </extensions>
     <actions>
-        <action id="com.weisanju.jsonschema.OpenApiSchemaGenerate" class="com.weisanju.jsonschema.OpenApiSchemaGenerate"
-                text="生成JsonSchema" description="生成JsonSchema">
-            <add-to-group group-id="EditorLangPopupMenu" anchor="last"/>
-        </action>
-
         <action id="com.weisanju.jsonschema.ApiPostDomainGenerate" class="com.weisanju.jsonschema.ApiPostDomainGenerate"
                 text="apiPostDomainGenerate" description="生成API POST 领域对象">
             <add-to-group group-id="EditorLangPopupMenu" anchor="last"/>

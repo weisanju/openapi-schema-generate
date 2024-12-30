@@ -169,7 +169,7 @@ private fun createProperty(
         objectProperty.name = name
         objectProperty.properties = mutableMapOf();
         objectProperty.additionalProperties = null;
-        return property
+        return objectProperty
     }
 
     val obj = ObjectProperty(description)
