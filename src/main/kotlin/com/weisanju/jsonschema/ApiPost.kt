@@ -8,10 +8,10 @@ open class Property(
     var description: String? = null,
     var type: String? = null,
     var required: Boolean? = null,
-    var example: String? = null
+    var example: String? = null,
+    var name: String? = null
 ) :
     Serializable {
-
 }
 
 open class ObjectProperty() : Property(type = "object") {

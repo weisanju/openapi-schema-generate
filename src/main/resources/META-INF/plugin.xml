@@ -35,7 +35,12 @@
         </action>
 
         <action id="com.weisanju.jsonschema.ApiPostDomainGenerate" class="com.weisanju.jsonschema.ApiPostDomainGenerate"
-                text="apiPostDomainGenerate" description="生成API PSOT 领域对象">
+                text="apiPostDomainGenerate" description="生成API POST 领域对象">
+            <add-to-group group-id="EditorLangPopupMenu" anchor="last"/>
+        </action>
+
+        <action id="com.weisanju.jsonschema.MarkDownGenerate" class="com.weisanju.jsonschema.MarkDownGenerate"
+                text="MarkDownGenerate" description="生成API MarkDown 领域对象">
             <add-to-group group-id="EditorLangPopupMenu" anchor="last"/>
         </action>
     </actions>

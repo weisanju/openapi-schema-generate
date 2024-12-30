@@ -4,8 +4,8 @@ import com.google.gson.GsonBuilder
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.NlsSafe
 import com.intellij.psi.*
-import com.jetbrains.rd.framework.base.deepClonePolymorphic
 import io.swagger.v3.oas.models.Operation
 import io.swagger.v3.oas.models.PathItem
 import io.swagger.v3.oas.models.media.Content
@@ -98,7 +98,8 @@ class OpenApiSchemaGenerate : AnAction() {
 private fun createProperty(
     type: PsiType,
     project: Project,
-    propertyPath: MutableList<PsiClass>
+    propertyPath: MutableList<PsiClass>,
+    name: String?
 ): Property {
     val description = PsiDocCommentUtils.getDocCommentTitle(type)
 
@@ -111,8 +112,19 @@ private fun createProperty(
             ((type as PsiClassType).parameters[0] as PsiClassType)
         }
 
-        property.items = createProperty(items, project, propertyPath)
-
+        val createProperty = createProperty(items, project, propertyPath, null)
+        if (name != null && createProperty.name == null) {
+            if (name.endsWith("s")) {
+                createProperty.name = name.dropLast(1)
+            } else if (name.endsWith("List")) {
+                createProperty.name = name.dropLast(4)
+            } else if (name.endsWith("Array")) {
+                createProperty.name = name.dropLast(5)
+            } else {
+                createProperty.name = name
+            }
+        }
+        property.items = createProperty
         return property
     }
 
@@ -129,6 +141,7 @@ private fun createProperty(
         } else {
             property = StringProperty(description)
         }
+        property.name = name
         return property
     }
 
@@ -136,7 +149,8 @@ private fun createProperty(
     if (PsiTypeUtils.isMap(project, type)) {
         //获取 Map 的 key Value
         val obj = ObjectProperty(description)
-        obj.additionalProperties = createProperty(PsiTypeUtils.getMapValueType(type), project, propertyPath)
+        obj.additionalProperties = createProperty(PsiTypeUtils.getMapValueType(type), project, propertyPath, null)
+        obj.name = name
         return obj
     }
 
@@ -166,7 +180,6 @@ private fun createProperty(
     propertyPath.add(clz)
 
     clz.allFields.forEach {
-
         //判断是否是静态字段 或者 final字段
         if (it.hasModifierProperty(PsiModifier.STATIC) || it.hasModifierProperty(PsiModifier.FINAL)) {
             return@forEach
@@ -177,12 +190,14 @@ private fun createProperty(
             return@forEach
         }
 
-        val prop = createProperty(it.type, project, propertyPath.toMutableList())
+        val prop = createProperty(it.type, project, propertyPath.toMutableList(), it.name)
         prop.description = PsiDocCommentUtils.getDocCommentTitle(it) ?: it.name
         prop.example = PsiDocCommentUtils.getTagText(it, "example")
         prop.required = PsiAnnotationUtils.annotationExists("javax.validation.constraints.NotNull", it)
+        prop.name = it.name
         obj.properties[it.name] = prop
     }
+    obj.name = name
     return obj
 }
 
@@ -190,21 +205,38 @@ private fun createProperty(
 class ApiPostDomainGenerate : AnAction() {
     override fun actionPerformed(event: AnActionEvent) {
 
-        val project = event.project!!
-
-        //获取选中的类、选中的方法
-
-        val (psiClass) = PsiUtils.getSelected(event)
-
-
-        val propertyPath = mutableListOf<PsiClass>()
-
-        val obj = createProperty(PsiTypeUtils.getPsiTypeFromPsiClass(psiClass), project, propertyPath)
+        val obj = doExtractApiSchema(event)
 
         val gson = GsonBuilder().setPrettyPrinting().create()
 
         val jsonString = gson.toJson(obj)
 
         ClipboardUtil.copyToClipboard(jsonString)
+    }
+
+    companion object {
+        fun doExtractApiSchema(event: AnActionEvent): Property {
+            val project = event.project!!
+
+            //获取选中的类、选中的方法
+
+            val (psiClass) = PsiUtils.getSelected(event)
+
+            val propertyPath = mutableListOf<PsiClass>()
+
+            val obj = createProperty(PsiTypeUtils.getPsiTypeFromPsiClass(psiClass), project, propertyPath, null)
+            return obj
+        }
+
+    }
+
+
+}
+
+
+class MarkDownGenerate : AnAction() {
+    override fun actionPerformed(event: AnActionEvent) {
+        val extractApiSchema = ApiPostDomainGenerate.doExtractApiSchema(event)
+        ClipboardUtil.copyToClipboard(writeMarkdown(extractApiSchema))
     }
 }

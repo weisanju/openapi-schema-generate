@@ -1,6 +1,7 @@
 plugins {
     id("java")
-    id("org.jetbrains.kotlin.jvm") version "1.9.23"
+    id("org.jetbrains.kotlin.jvm") version "2.0.21"
+
     id("org.jetbrains.intellij") version "1.17.2"
 }
 
@@ -12,7 +13,7 @@ repositories {
 }
 
 dependencies {
-// https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-models
+// https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-models·
     implementation("io.swagger.core.v3:swagger-models:2.2.21")
 
     implementation("com.google.code.gson:gson:2.10.1")
@@ -22,10 +23,13 @@ dependencies {
 // Read more: https://plugins.jetbrains.com/docs/intellij/tools-gradle-intellij-plugin.html
 intellij {
     version.set("2023.2.5")
-    type.set("IC") // Target IDE Platform
+
+    type.set("IC")
 
     plugins.set(listOf("com.intellij.java"))
 }
+
+
 
 tasks {
     // Set the JVM compatibility versions
@@ -39,7 +43,7 @@ tasks {
 
     patchPluginXml {
         sinceBuild.set("232")
-        untilBuild.set("242.*")
+        untilBuild.set("244.*")
     }
 
     signPlugin {
