@@ -4,7 +4,6 @@ import com.google.gson.GsonBuilder
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.NlsSafe
 import com.intellij.psi.*
 import io.swagger.v3.oas.models.Operation
 import io.swagger.v3.oas.models.PathItem
@@ -98,9 +97,10 @@ class OpenApiSchemaGenerate : AnAction() {
 private fun createProperty(
     type: PsiType,
     project: Project,
-    propertyPath: MutableList<PsiClass>,
+    propertyPath: MutableMap<PsiClass, ObjectProperty>,
     name: String?
 ): Property {
+
     val description = PsiDocCommentUtils.getDocCommentTitle(type)
 
 
@@ -160,24 +160,22 @@ private fun createProperty(
     }
 
 
-    val obj = ObjectProperty(description)
-
-
     val clz = (type as PsiClassType).resolve()!!
 
-    //判断是否存在循环引用。即在路径中是否存在当前类
-    for (psiClass in propertyPath) {
-        if (psiClass == clz) {
-            throw RuntimeException(
-                "类${clz.qualifiedName} 存在 循环引用，API中禁止存在循环引用,引用路径为：${
-                    propertyPath.map { it.qualifiedName }.joinToString("->")
-                }"
-            )
-        }
+    if (propertyPath.containsKey(clz)) {
+        val property = propertyPath[clz]!!
+
+        val objectProperty = ObjectProperty(property)
+        objectProperty.name = name
+        objectProperty.properties = mutableMapOf();
+        objectProperty.additionalProperties = null;
+        return property
     }
 
+    val obj = ObjectProperty(description)
+
     //防止循环引用。 生成过的类不再生成
-    propertyPath.add(clz)
+    propertyPath[clz] = obj
 
     clz.allFields.forEach {
         //判断是否是静态字段 或者 final字段
@@ -190,7 +188,7 @@ private fun createProperty(
             return@forEach
         }
 
-        val prop = createProperty(it.type, project, propertyPath.toMutableList(), it.name)
+        val prop = createProperty(it.type, project, propertyPath, it.name)
         prop.description = PsiDocCommentUtils.getDocCommentTitle(it) ?: it.name
         prop.example = PsiDocCommentUtils.getTagText(it, "example")
         prop.required = PsiAnnotationUtils.annotationExists("javax.validation.constraints.NotNull", it)
@@ -219,12 +217,8 @@ class ApiPostDomainGenerate : AnAction() {
             val project = event.project!!
 
             //获取选中的类、选中的方法
-
             val (psiClass) = PsiUtils.getSelected(event)
-
-            val propertyPath = mutableListOf<PsiClass>()
-
-            val obj = createProperty(PsiTypeUtils.getPsiTypeFromPsiClass(psiClass), project, propertyPath, null)
+            val obj = createProperty(PsiTypeUtils.getPsiTypeFromPsiClass(psiClass), project, mutableMapOf(), null)
             return obj
         }
 

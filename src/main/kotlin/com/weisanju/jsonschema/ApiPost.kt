@@ -22,6 +22,17 @@ open class ObjectProperty() : Property(type = "object") {
     constructor(description: String? = null) : this() {
         this.description = description
     }
+
+    //copy constructor
+    constructor(obj: ObjectProperty) : this() {
+        this.description = obj.description
+        this.type = obj.type
+        this.required = obj.required
+        this.example = obj.example
+        this.name = obj.name
+        this.properties = obj.properties
+        this.additionalProperties = obj.additionalProperties
+    }
 }
 
 class ArrayProperty() : Property(type = "array") {
