@@ -19,7 +19,7 @@ fun handleSchema(fieldName: String, schema: Property, schemasQueue: MutableList<
                     schemasQueue.add(additionalProperties)
                 }
 
-                writer.appendLine("| $fieldName | map<string,$valueType> | $description | $isRequired | $example |")
+                writer.appendLine("| $fieldName | map\\<string,$valueType> | $description | $isRequired | $example |")
             } else {
                 writer.appendLine("| $fieldName | ${capitalize(fieldName)} | $description | $isRequired | $example |")
                 schemasQueue.add(schema)
@@ -41,7 +41,7 @@ fun handleSchema(fieldName: String, schema: Property, schemasQueue: MutableList<
                 }
             }
 
-            writer.appendLine("| $fieldName | array<$itemType> | $description | $isRequired | $example |")
+            writer.appendLine("| $fieldName | array\\<$itemType> | $description | $isRequired | $example |")
 
             if (rawItemType == "object" || rawItemType == "array") {
                 //items 命名规则 文件名称夹
@@ -78,10 +78,9 @@ fun writeMarkdown(root: Property): String {
 
         val fieldName = schema.name ?: ""
 
-
         var description = schema.description ?: ""
 
-        if (fieldName.isNotEmpty()) {
+        if (fieldName.isNotEmpty() && description.isNotEmpty()) {
             description = "($description)"
         }
 
@@ -91,10 +90,10 @@ fun writeMarkdown(root: Property): String {
 
         if (schema is ObjectProperty) {
             for (property in schema.properties) {
-                handleSchema(property.key, property.value, schemasQueue,writer)
+                handleSchema(property.key, property.value, schemasQueue, writer)
             }
         } else if (schema is ArrayProperty) {
-            handleSchema("", schema.items!!, schemasQueue, writer)
+            handleSchema(schema.name ?: "", schema.items!!, schemasQueue, writer)
         }
     }
 
